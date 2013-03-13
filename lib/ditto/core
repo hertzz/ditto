@@ -146,12 +146,10 @@ function initialize_cron_automation () {
 		mkdir -p "${DITTO_BASE_DIR}/bin/cron" &> /dev/null
 	fi
 
-	cat <<- EOF > "${DITTO_BASE_DIR}/bin/cron/ditto-backup.cron"
-	* * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
-	EOF
-
 	if [ ! -f /etc/cron.d/ditto-backup.cron ]; then
-		ln -s "`readlink -f ${DITTO_BASE_DIR}/bin/cron/ditto-backup.cron`" /etc/cron.d/ditto-backup.cron
+		cat <<- EOF > "/etc/cron.d/ditto-backup.cron"
+    * * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
+		EOF
 	fi
 
 	echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
