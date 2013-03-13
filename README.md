@@ -63,7 +63,7 @@ You will need to change the Username and Password properties, however all of the
 
 To back up individual databases, change the databases property to a space seperated list of database names in double quotes.
 
-The "**WHEN**" property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the MySQL schedule to run at 02:25 PM daily, you would specify the following:
+The **WHEN** property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the MySQL schedule to run at 02:25 PM daily, you would specify the following:
 
 	WHEN="25 14 * * *"
 	
@@ -118,7 +118,7 @@ You can override the path which the schedule is using as the source location by 
 
 	S3_BACKUP_DIR=/path/to/my/dir
 
-The "**WHEN**" property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the S3 schedule to run at 04:45 PM daily, you would specify the following:
+The **WHEN** property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the S3 schedule to run at 04:45 PM daily, you would specify the following:
 
 	WHEN="45 16 * * *"
 	

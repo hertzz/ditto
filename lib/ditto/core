@@ -37,6 +37,7 @@ function initialize_params () {
 	LOG_TMP_FILE=`mktemp "/tmp/DITTO-XXXX.log"`
 	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-"itsupport@base2services.com"}
 	VERBOSE_LOGGING=${VERBOSE_LOGGING:-false}
+	LOG_FILE=${LOG_FILE:-"syslog"}
 	LOGGING_STDOUT=${LOGGING_STDOUT:-false}
 	SYSTEM_HOSTNAME=${SYSTEM_HOSTNAME:-"`hostname`"}
 	DITTO_LIB_DIR=${DITTO_LIB_DIR:-"$DITTO_BASE_DIR/lib"}
@@ -58,6 +59,13 @@ function initialize_run () {
 
 	if ! file_exists? $LOG_TMP_FILE; then
 		log_fatal "Could not create log file stub (${LOG_TMP_FILE})."
+	fi
+
+	if [[ $LOG_FILE != "syslog" ]]; then
+		if ! file_exists? $LOG_FILE; then
+			log_debug "Creating Ditto custom log file (${LOG_FILE})..."
+    	touch $LOG_FILE
+		fi
 	fi
 
 	log_info "Launching Ditto..."
@@ -418,9 +426,16 @@ function log_base () {
 		echo "${DATE_NOW} [ DITTO-STDOUT/${DITTO_PID} ] ${LOG_MESSAGE}"
 	fi
 
-	# Write to log files
+	# Write to syslog if logfile not specified or explicitally specified.
+	if [[ $LOG_FILE == "syslog" ]]; then
+		logger -t "[ DITTO/${DITTO_PID} ]" "${LOG_MESSAGE}"
+	else
+		# Write logs to custom file
+    echo "${DATE_NOW} [ DITTO/${DITTO_PID} ] ${LOG_MESSAGE}" >> $LOG_FILE
+	fi
+
+	# Write to temporary email log file
 	echo "${DATE_NOW} [ DITTO/${DITTO_PID} ] ${LOG_MESSAGE}" >> $LOG_TMP_FILE
-	logger -t "[ DITTO/${DITTO_PID} ]" "${LOG_MESSAGE}"
 }
 
 function log_info () {
