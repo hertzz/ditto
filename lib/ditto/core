@@ -76,7 +76,11 @@ function finalize_run () {
 	local TIME_SUFFIX=""
 	local IS_MINUTES=false
 	local REAL_RUN_TIME=
-
+	
+	if [[ $EXECUTION_STATE == "OK" || $EXECUTION_STATE == "WARNING" ]]; then
+	echo "`date +%s`" > $DITTO_BASE_DIR/.lastSuccessfulRun
+	fi
+	
 	if [ $DITTO_TOTAL_RUN_TIME -gt 60 ]; then
 		TIME_SUFFIX="minutes"
 		REAL_RUN_TIME=$((DITTO_TOTAL_RUN_TIME / 60))
