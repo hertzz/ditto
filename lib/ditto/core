@@ -142,10 +142,6 @@ function send_passive_notification () {
 }
 
 function initialize_cron_automation () {
-	if [ ! -d "${DITTO_BASE_DIR}/bin/cron" ]; then
-		mkdir -p "${DITTO_BASE_DIR}/bin/cron" &> /dev/null
-	fi
-
 	if [ ! -f /etc/cron.d/ditto-backup.cron ]; then
 		cat <<- EOF > "/etc/cron.d/ditto-backup.cron"
     * * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
