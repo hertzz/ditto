@@ -1,0 +1,565 @@
+#!/usr/bin/env bash
+#
+# DITTO
+# Tom Johnson <t.johnson@base2services.com>
+#
+# A bash driven backup utility for scheduled
+# Linux system backups.
+#
+
+# Coordinate execution of DITTO run.
+function bootstrap () {
+	parse_params "$@"
+
+	# Initialize stubs/settings
+	load_configuration_default
+	initialize_params
+	initialize_directories
+	initialize_run
+
+	# Start loading schedules
+	parse_schedules
+
+	# Clean up n shit
+	finalize_run
+}
+
+function load_configuration_default () {
+	if [ -f "${DITTO_BASE_DIR}/config/default" ]; then
+		source "${DITTO_BASE_DIR}/config/default" &> /dev/null
+	fi
+}
+
+# Initializer for default parameters
+function initialize_params () {
+	DITTO_PID="$$"
+	EXECUTION_STATES=("OK" "WARNING" "ERROR" "FAILED")
+	LOG_TMP_FILE=`mktemp "/tmp/DITTO-XXXX.log"`
+	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-"itsupport@base2services.com"}
+	VERBOSE_LOGGING=${VERBOSE_LOGGING:-false}
+	LOGGING_STDOUT=${LOGGING_STDOUT:-false}
+	SYSTEM_HOSTNAME=${SYSTEM_HOSTNAME:-"`hostname`"}
+	DITTO_LIB_DIR=${DITTO_LIB_DIR:-"$DITTO_BASE_DIR/lib"}
+	DITTO_SCHEDULES_DIR=${DITTO_SCHEDULES_DIR:-"$DITTO_BASE_DIR/schedules"}
+	DITTO_BACKUPS_DIR=${DITTO_BACKUPS_DIR:-"$DITTO_BASE_DIR/backups"}
+	DITTO_BACKUPS_STORE_DIR=${DITTO_BACKUPS_STORE_DIR:-"$DITTO_BACKUPS_DIR/$SYSTEM_HOSTNAME"}
+	DITTO_HANDLERS_DIR=${DITTO_HANDLERS_DIR:-"$DITTO_LIB_DIR/handlers"}
+	SCHEDULES_CAN_EXECUTE=0
+
+	# NSCA options
+	NSCA_CONFIG_FILE=${NSCA_CONFIG_FILE:-/etc/nagios/send_nsca.cfg}
+	NSCA_SEND_NOTIFICATIONS=${NSCA_SEND_NOTIFICATIONS:-false}
+}
+
+# Runtime initialization
+function initialize_run () {
+	DITTO_START_TIME=`date +"%s"`
+	EXECUTION_STATE="OK"
+
+	if ! file_exists? $LOG_TMP_FILE; then
+		log_fatal "Could not create log file stub (${LOG_TMP_FILE})."
+	fi
+
+	log_info "Launching Ditto..."
+}
+
+# Runtime finalization
+function finalize_run () {
+	DITTO_END_TIME=`date +"%s"`
+	DITTO_TOTAL_RUN_TIME=$((DITTO_END_TIME - $DITTO_START_TIME))
+
+	# Did any schedules run
+	if [ $SCHEDULES_CAN_EXECUTE -eq 0 ]; then
+		log_info "No schedules were executed."
+	fi
+
+	local TIME_SUFFIX=""
+	local IS_MINUTES=false
+	local REAL_RUN_TIME=
+
+	if [ $DITTO_TOTAL_RUN_TIME -gt 60 ]; then
+		TIME_SUFFIX="minutes"
+		REAL_RUN_TIME=$((DITTO_TOTAL_RUN_TIME / 60))
+	else
+		TIME_SUFFIX="seconds"
+		REAL_RUN_TIME=$((DITTO_TOTAL_RUN_TIME))
+	fi
+
+	log_info "Total execution time was ${REAL_RUN_TIME} ${TIME_SUFFIX}."
+
+	# Send NSCA passive notitication
+	send_passive_notification
+
+	# Send run email
+	if [ $SCHEDULES_CAN_EXECUTE -gt 0 ]; then
+		mail_results
+	fi
+
+	# Perform a system cleanup
+	system_cleanup
+
+	# Exit safely
+	exit 0
+}
+
+function send_passive_notification () {
+	local CURRENT_STATE="${EXECUTION_STATE}"
+	local NSCA_RETVAL=0
+	local NOTIFICATION_MESSAGE=
+
+	if [[ $NSCA_SEND_NOTIFICATIONS == true ]]; then
+		# Send notification
+		if [[ ! -z $CURRENT_STATE ]]; then
+			# Determine Nagios return code
+			case $CURRENT_STATE in
+				OK)
+					NSCA_RETVAL=0
+					NOTIFICATION_MESSAGE="OK - Ditto backups are working."
+				;;
+				ERROR)
+					NSCA_RETVAL=2
+					NOTIFICATION_MESSAGE="ERROR - Ditto backups are working, but there was a major error."
+				;;
+				WARNING)
+					NSCA_RETVAL=1
+					NOTIFICATION_MESSAGE="WARN - Ditto backups are working, but there was a minor problem."
+				;;
+				FAILED)
+					NSCA_RETVAL=2
+					NOTIFICATION_MESSAGE="ERROR - Ditto backups are not working."
+				;;
+			esac
+
+			printf "%s\t%s\t%s\t%s\n" "${NSCA_HOSTNAME}" "Ditto backups" "${NSCA_RETVAL}" "${NOTIFICATION_MESSAGE}" | \
+			send_nsca -H "${NSCA_REMOTE_HOST}" -c "${NSCA_CONFIG_FILE}" &> /dev/null
+			if [ $? -eq 0 ]; then
+				log_debug "Sent NSCA passive notification to remote host (${NSCA_REMOTE_HOST})."
+			else
+				log_debug "Failed to send NSCA passive notification to remote host (${NSCA_REMOTE_HOST})."
+			fi
+		fi
+	fi
+}
+
+function initialize_cron_automation () {
+	if [ ! -d "${DITTO_BASE_DIR}/bin/cron" ]; then
+		mkdir -p "${DITTO_BASE_DIR}/bin/cron" &> /dev/null
+	fi
+
+	if [ ! -f "${DITTO_BASE_DIR}/bin/cron/ditto-backup.cron" ]; then
+		cat <<- EOF > "${DITTO_BASE_DIR}/bin/cron/ditto-backup.cron"
+			* * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
+		EOF
+	fi
+
+	if [ ! -f /etc/cron.d/ditto-backup.cron ]; then
+		ln -s "`readlink -f ${DITTO_BASE_DIR}/bin/cron/ditto-backup.cron`" /etc/cron.d/ditto-backup.cron
+	fi
+
+	echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
+}
+
+function system_cleanup () {
+	# Remove temp log file
+	if file_exists? $LOG_TMP_FILE; then
+		rm -f $LOG_TMP_FILE 2>&1
+	fi
+}
+
+function initialize_directories () {
+	# Base backups directory
+	if ! dir_exists? $DITTO_BACKUPS_DIR; then
+		mkdir -p $DITTO_BACKUPS_DIR 2>&1
+		if [ $? -eq 0 ]; then
+			log_debug "Created backups directory (${DITTO_BACKUPS_DIR})."
+		else
+			log_fatal "Unable to create backups directory."
+		fi
+	fi
+
+	# hostname directory
+	if ! dir_exists? $DITTO_BACKUPS_STORE_DIR; then
+		mkdir -p $DITTO_BACKUPS_STORE_DIR
+		if [ $? -eq 0 ]; then
+			log_debug "Created backups storage directory (${DITTO_BACKUPS_STORE_DIR})."
+		else
+			log_fatal "Unable to create backups storage directory"
+		fi
+	fi
+
+	# Make sure schedules dir exists
+	if ! dir_exists? $DITTO_SCHEDULES_DIR; then
+		mkdir -p $DITTO_SCHEDULES_DIR 2>&1
+		if [ $? -eq 0 ]; then
+			log_debug "Created schedules directory (${DITTO_SCHEDULES_DIR})."
+		else
+			log_fatal "Unable to create schedules directory."
+		fi
+	fi
+}
+
+# Rollback any permanent changes if a fatal error occurs
+function fatal_exit () {
+	finalize_run
+}
+
+# Recurse through schedules and execute required
+# functionality to perform backups.
+function parse_schedules () {
+	log_debug "Parsing schedules..."
+
+	if ! dir_empty? $DITTO_SCHEDULES_DIR; then
+		TOTAL_SCHEDULES=`ls -1 $DITTO_SCHEDULES_DIR/* | wc -l`
+		log_debug "Found '${TOTAL_SCHEDULES}' schedules."
+
+		for SCHEDULE in $DITTO_SCHEDULES_DIR/*; do
+			SCHEDULE_BASE_NAME=`basename $SCHEDULE`
+			log_debug "Found schedule, \"${SCHEDULE_BASE_NAME}\"."
+
+			# Make sure not a zero byte file
+			if ! file_zero_size? $SCHEDULE; then
+				log_info "Loading \"${SCHEDULE_BASE_NAME}\" schedule..."
+				source $SCHEDULE 2>&1
+
+				# Determine schedule type
+				SCHEDULE_TYPE=`echo ${SCHEDULE_BASE_NAME#*.}`
+				if [[ "x${SCHEDULE_TYPE}" == "x" ]]; then
+					log_fatal "Could not determine schedule type for \"${SCHEDULE_BASE_NAME}\"."
+				fi
+
+				# Call appropriate schedule function (and check if it exists lulz)
+				declare -f ${SCHEDULE_TYPE}_handler 2>&1
+				if [ $? -ne 0 ]; then
+					# Check if handler maybe hasn't been loaded
+					if file_exists? $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE; then
+						source $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE 2>&1
+						if [ $? -eq 0 ]; then
+							log_debug "Loaded \"${SCHEDULE_TYPE}\" schedule handler."
+						else
+							log_fatal "Could not load \"${SCHEDULE_TYPE}\" schedule handler."
+						fi
+					else
+						log_fatal "Could not find appropriate schedule handler for \"${SCHEDULE_TYPE}\" schedule type."
+					fi
+				fi
+
+				# Ensure backup store location exists for handler
+				validate_handler_backup_dir $SCHEDULE_TYPE
+
+				# Run handler if time machines crontab entry in schedule
+				if execution_time_suitable -eq 0; then
+					# Call schedule handler
+					${SCHEDULE_TYPE}_handler
+				else
+					log_debug "Skipping execution of \"${SCHEDULE_TYPE}\", it is not time."
+				fi
+
+			else
+				log_warning "Skipping load of \"${SCHEDULE_BASE_NAME}\" schedule. No configuration options found in file!"
+			fi
+		done
+	else
+		log_error "There are no available schedules."
+	fi
+}
+
+# Check if schedule should be executed or not
+function execution_time_suitable () {
+	local CRON_EXPRESSION="${WHEN}"
+
+	if [[ "x${CRON_EXPRESSION}" == "x" ]]; then
+		log_warning "Could not determine if schedule \"${SCHEDULE_BASE_NAME}\" should run or not. Skipping."
+	else
+		# Parse cron expression into seperate variables
+		local CRON_MIN="`echo \"$CRON_EXPRESSION\" | cut -f1 -d' '`"
+		local CRON_HOUR="`echo \"$CRON_EXPRESSION\" | cut -f2 -d' '`"
+		local CRON_DAY_MONTH="`echo \"$CRON_EXPRESSION\" | cut -f3 -d' '`"
+		local CRON_MONTH="`echo \"$CRON_EXPRESSION\" | cut -f4 -d' '`"
+		local CRON_DAY_WEEK="`echo \"$CRON_EXPRESSION\" | cut -f5 -d' '`"
+		local CURRENT_MIN=`date "+%M"`
+		local CURRENT_HOUR=`date "+%H"`
+		local CURRENT_DAY_MONTH=`date "+%d"`
+		local CURRENT_MONTH=`date "+%m"`
+		local CURRENT_DAY_WEEK=`date "+%w"`
+
+		# Validate expression against current date/time values
+		log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" cron expression is \"${CRON_EXPRESSION}\"."
+		if [[ $CRON_MIN == "*" || $CRON_MIN == $CURRENT_MIN ]]; then
+			if [[ $CRON_HOUR == "*" || $CRON_HOUR == $CURRENT_HOUR ]]; then
+				if [[ $CRON_DAY_MONTH == "*" || $CRON_DAY_MONTH == $CURRENT_DAY_MONTH ]]; then
+					if [[ $CRON_MONTH == "*" || $CRON_MONTH == $CURRENT_MONTH ]]; then
+						if [[ $CRON_DAY_WEEK == "*" || $CRON_DAY_WEEK == $CURRENT_DAY_WEEK ]]; then
+							log_info "Schedule \"${SCHEDULE_BASE_NAME}\" is going to run now..."
+
+							# Increment schedule can be executed counter
+							SCHEDULES_CAN_EXECUTE=$((SCHEDULES_CAN_EXECUTE+1))
+							return 0
+						else
+							log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" will not run. Time does not match 'WHEN' schedule."
+							return 1
+						fi
+					else
+						log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" will not run. Time does not match 'WHEN' schedule."
+						return 1
+					fi
+				else
+					log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" will not run. Time does not match 'WHEN' schedule."
+					return 1
+				fi
+			else
+				log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" will not run. Time does not match 'WHEN' schedule."
+				return 1
+			fi
+		else
+			log_debug "Schedule \"${SCHEDULE_BASE_NAME}\" will not run. Time does not match 'WHEN' schedule."
+			return 1
+		fi
+	fi
+}
+
+# Ensure that  a backup directory exists for a handler
+function validate_handler_backup_dir () {
+	local HANDLER="$1"
+	if ! dir_exists? "$DITTO_BACKUPS_STORE_DIR/$HANDLER"; then
+		mkdir -p "$DITTO_BACKUPS_STORE_DIR/$HANDLER" 2>&1
+		if [ $? -eq 0 ]; then
+			log_debug "Created handler \"${HANDLER}\" backups directory."
+		else
+			log_fatal "Unable to create handler \"${HANDLER}\" backups directory."
+		fi
+	else
+		log_debug "Handler \"${HANDLER}\" backups directory exists."
+	fi
+}
+
+# Get and parse parameters from root DITTO
+# executable.
+function parse_params() {
+	local OPTIND
+	local PARAMS="$@"
+
+	while getopts ":Vvhc:Fdsi" OPTIONS; do
+		case $OPTIONS in
+			V)
+				echo "1.0"
+			;;
+			v)
+				# Toggle
+				VERBOSE_LOGGING=true
+			;;
+			s)
+				# Toggle
+				LOGGING_STDOUT=true
+			;;
+			i)
+				# Toggle
+				# Initialize cron automation
+				initialize_cron_automation
+				exit 0
+			;;
+			*)
+				syntax_usage
+				exit 0
+			;;
+		esac
+	done
+}
+
+function syntax_usage () {
+	cat <<-ENDMSG
+	
+	DITTO
+	Tom Johnson <t.johnson@base2services.com>
+
+	A bash driven backup utility for scheduled Linux system
+	backups.
+
+	-i, --initialize	Initialize cron automation scripts
+	-V, --version		Display version info.ation
+	-v, --verbose		Run DITTO with a high verbosity level
+	-h, --help		Show this help menu
+	-s, --stdout		Print logging info.ation to standard out
+
+	Usage:
+	$0 <options>
+
+	ENDMSG
+}
+
+function log_base () {
+	local TYPE=
+	local MESSAGE="$2"
+	local DATE_NOW=`date +"%b %d %k:%M:%S"`
+
+	case $1 in
+		"info")
+			TYPE="INFO"
+		;;
+		"error")
+			TYPE="ERROR"
+		;;
+		"warn")
+			TYPE="WARN"
+		;;
+		"debug")
+			TYPE="DEBUG"
+		;;
+		"fatal")
+			TYPE="FATAL"
+		;;
+		*)
+			TYPE="UNKNOWN"
+		;;
+	esac
+
+	if [[ -z $SCHEDULE_BASE_NAME ]]; then
+		SCHEDULE_BASE_NAME="ditto.system"
+	fi
+
+	local LOG_MESSAGE="${SCHEDULE_BASE_NAME} - ${TYPE}: ${MESSAGE}"
+
+	if [[ $LOGGING_STDOUT == true ]]; then
+		echo "${DATE_NOW} [ DITTO-STDOUT/${DITTO_PID} ] ${LOG_MESSAGE}"
+	fi
+
+	# Write to log files
+	echo "${DATE_NOW} [ DITTO/${DITTO_PID} ] ${LOG_MESSAGE}" >> $LOG_TMP_FILE
+	logger -t "[ DITTO/${DITTO_PID} ]" "${LOG_MESSAGE}"
+}
+
+function log_info () {
+	log_base "info" "$1"
+}
+
+function log_error () {
+	log_base "error" "$1"
+	exec_state_set "ERROR"
+}
+
+function log_warning () {
+	log_base "warn" "$1"
+	exec_state_set "WARNING"
+}
+
+function log_fatal () {
+	log_base "fatal" "$1"
+	exec_state_set "FAILED"
+	fatal_exit
+}
+
+function log_debug () {
+	if [[ $VERBOSE_LOGGING == true ]]; then
+		log_base "debug" "$1"
+	fi
+}
+
+# Helper function to test if directory contains
+# a file count greater than zero.
+function dir_empty? () {
+	local DIR="$1"
+	local TOTAL_FILES=
+
+	if [ ! -d $DIR ]; then
+		log_error "Could not locate directory."
+	else
+		TOTAL_FILES=`ls -1 "$DIR/" | wc -l`
+		if [[ $TOTAL_FILES == 0 ]]; then
+			return 0
+		else
+			return 1
+		fi
+	fi
+}
+
+# Checks if a directory exists
+function dir_exists? () {
+	local DIR="$1"
+
+	if [ -d $DIR ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Checks if a file exists
+function file_exists? () {
+	local FILE="$1"
+
+	if [ -f $FILE ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Verifiy if a specified file is zero bytes in size.
+function file_zero_size? () {
+	local FILE="$1"
+
+	if [ -f $FILE ]; then
+		if [ ! -s $FILE ]; then
+			return 0
+		else
+			return 1
+		fi
+	else
+		log_error "Cannot locate specified file \"${FILE}\" to check filesize."
+	fi
+}
+
+function exec_state_set () {
+	local STATE="$1"
+	local PREVIOUS_STATE="${EXECUTION_STATE}"
+
+	if [[ "x${STATE}" == "x" ]]; then
+		log_debug "Skipped setting state due to NULL state."
+	else
+		# Check if setting to a valid state
+		if [[ "${EXECUTION_STATES[*]}" =~ "${STATE}" ]]; then
+			EXECUTION_STATE="${STATE}"
+			log_debug "Execution state changed from \"${PREVIOUS_STATE}\" to \"${STATE}\"."
+		else
+			log_debug "Could not set exec state to \"${STATE}\". Not an available execution state."
+		fi
+	fi
+}
+
+function mail_results () {
+	local MAILBODY=
+
+	case $EXECUTION_STATE in
+		"OK")
+			MAILBODY=$(cat <<-EOM
+			DITTO completed successfully. See log for more info.
+			EOM
+			)
+		;;
+		"WARNING")
+			MAILBODY=$(cat <<-EOM
+			DITTO completed with warnings detected. See log for more info.
+			EOM
+			)
+		;;
+		"FAILED")
+			MAILBODY=$(cat <<-EOM
+			DITTO failed. See log for more info.
+			EOM
+			)
+		;;
+		"ERROR")
+			MAILBODY=$(cat <<-EOM
+			DITTO completed with errors detected. See log for more info.
+			EOM
+			)
+		;;
+		*)
+			MAILBODY=$(cat <<-EOM
+			DITTO completed in an unknown state. See log for more info.
+			EOM
+			)
+		;;
+	esac
+
+	echo "${MAILBODY}" | mail -a $LOG_TMP_FILE -s "Ditto Backup Notification (${SYSTEM_HOSTNAME})" "${DITTO_MAIL_RECIPIENTS}"
+}

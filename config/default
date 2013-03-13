@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#
+
+# NSCA configuration options
+#NSCA_REMOTE_HOST=ip-addr-in-arpa
+#NSCA_SEND_NOTIFICATIONS=false
+#NSCA_CONFIG_FILE=/etc/nagios/send_nsca.cfg

@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#
+# Ditto
+# Tom Johnson <t.johnson@base2services.com>
+#
+
+MYSQL_EXCLUDE_DATABASES="information_schema|mysql|performance_schema|test|Database"
+
+# Initializer for handler
+function mysql_initialize () {
+	mysql_set_attributes
+	mysql_validate_paths
+	mysql_validate_attributes
+}
+
+function mysql_set_attributes () {
+	MYSQL_USERNAME=${MYSQL_USERNAME:-"root"}
+	MYSQL_PASSWORD=${MYSQL_PASSWORD:-""}
+	MYSQL_DATABASES=${MYSQL_DATABASES:-"all"}
+	MYSQL_HOSTNAME=${MYSQL_HOSTNAME:-"localhost"}
+	MYSQL_GZIP_DATA=${MYSQL_GZIP_DATA:-true}
+	MYSQL_DATED_DUMP=${MYSQL_DATED_DUMP:-true}
+	MYSQL_HOTCOPY=${MYSQL_HOTCOPY:-false}
+	MYSQL_OUTPUT_LOCATION=${MYSQL_OUTPUT_LOCATION:-"default"}
+}
+
+function mysql_validate_attributes () {
+	# Check if password is NULL
+	if [[ -z $MYSQL_PASSWORD ]]; then
+		log_fatal "Cannot have empty password when dumping MySQL database."
+	fi
+
+	# Output location
+	if [[ $MYSQL_OUTPUT_LOCATION == "default" ]]; then
+		MYSQL_OUTPUT_LOCATION="${DITTO_BACKUPS_STORE_DIR}/mysql"
+	fi
+
+	# Set output file mask
+	if [[ $MYSQL_DATED_DUMP == true ]]; then
+		if [[ $MYSQL_GZIP_DATA == true ]]; then
+			MYSQL_FILE_SUFFIX="`date "+%Y%m%d-%H%M"`.gz"
+		else
+			MYSQL_FILE_SUFFIX="`date "+%Y%m%d-%H%M"`.sql"
+		fi
+	else
+		if [[ $MYSQL_GZIP_DATA == true ]]; then
+			MYSQL_FILE_SUFFIX="gz"
+		else
+			MYSQL_FILE_SUFFIX="sql"
+		fi
+	fi
+
+	# Get databases list
+	if [[ $MYSQL_DATABASES == "all" ]]; then
+		MYSQL_DATABASES="`mysql -u${MYSQL_USERNAME} -p${MYSQL_PASSWORD} -e \"SHOW DATABASES;\" | grep -Ev \"(${MYSQL_EXCLUDE_DATABASES})\" 2>&1`"
+		if [ $? -ne 0 ]; then
+			log_warning "No databases were found when attempting to find available databases."
+		fi
+	fi
+}
+
+# Validate all paths required for mysql processing
+function mysql_validate_paths () {
+	# Check if custom output location exists
+	if [[ $MYSQL_OUTPUT_LOCATION != "default" ]]; then
+		if ! dir_exists? $MYSQL_OUTPUT_LOCATION; then
+			mkdir -p $MYSQL_OUTPUT_LOCATION 2>&1
+			if [ $? -eq 0 ]; then
+				log_debug "Created custom MySQL output location (${MYSQL_OUTPUT_LOCATION})"
+			else
+				log_fatal "Unable to create custom MySQL output location \"${MYSQL_OUTPUT_LOCATION}\"."
+			fi
+		fi
+	fi
+}
+
+# MySQL initializer for database processing
+function mysql_handler () {
+	# Initialize handler
+	mysql_initialize
+	mysql_execute_backup
+}
+
+function mysql_execute_backup () {
+	# Build mysqldump options
+	local MYSQL_DUMP_OPTS=""
+
+	# Initialize dump options
+	MYSQL_DUMP_OPTS="${MYSQL_DUMP_OPTS} -u${MYSQL_USERNAME}"
+	MYSQL_DUMP_OPTS="${MYSQL_DUMP_OPTS} -p${MYSQL_PASSWORD}"
+	MYSQL_DUMP_OPTS="${MYSQL_DUMP_OPTS} -h${MYSQL_HOSTNAME}"
+
+	# Perform MySQL dump
+	if [[ ! -z $MYSQL_DATABASES ]]; then
+		for DATABASE in $MYSQL_DATABASES; do
+			log_info "Beginning dump of \"${DATABASE}\" database..."
+
+			if [[ $MYSQL_GZIP_DATA == true ]]; then
+				mysqldump $MYSQL_DUMP_OPTS --databases $DATABASE | gzip > $MYSQL_OUTPUT_LOCATION/$DATABASE.$MYSQL_FILE_SUFFIX 2>&1
+				if [ $? -eq 0 ]; then
+					# Gzip compression test
+						if [[ (( $? -eq 0 )) && (( `gzip -t $MYSQL_OUTPUT_LOCATION/$DATABASE.$MYSQL_FILE_SUFFIX` -eq 0 ))  ]]; then
+						log_info "Completed dump of MySQL database \"${DATABASE}\" with gzip compression (gzip test OK)."
+					else
+						log_warning "Completed dump of MySQL database \"${DATABASE}\" with gzip compression (gzip test FAILED)"
+					fi
+				else
+					log_error "Failed to dump MySQL database \"${DATABASE}\"."
+				fi
+			else
+				mysqldump $MYSQL_DUMP_OPTS --databases $DATABASE > $MYSQL_OUTPUT_LOCATION/$DATABASE.$MYSQL_FILE_SUFFIX 2>&1
+				if [ $? -eq 0 ]; then
+					log_info "Completed dump of MySQL database \"${DATABASE}\" to raw SQL file."
+				else
+					log_error "Failed to dump MySQL database \"${DATABASE}\"."
+				fi
+			fi
+		done
+	else
+		log_warning "There are no databases to dump."
+	fi
+}

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Ditto
+# Tom Johnson <t.johnson@base2services.com> 
+#
+# A bash driven backup utility for scheduled
+# incremental Linux system backups.
+#
+
+DITTO_BASE_DIR="`dirname $(readlink -f $0)`/.."
+source $DITTO_BASE_DIR/lib/ditto/core
+
+# Start ditto execution
+bootstrap "$@"

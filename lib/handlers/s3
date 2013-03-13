@@ -1,0 +1,179 @@
+#!/usr/bin/env bash
+#
+# Ditto
+# Tom Johnson <t.johnson@base2services.com>
+#
+
+# Initializer for handler
+function s3_initialize () {
+	s3_set_attributes
+	
+	# Export access keys if they are set
+	if s3_validate_keys -eq 0; then
+		export_access_keys
+	fi
+
+	# Build config file
+	s3_build_config
+
+	# Perform synchronization with S3 (if attributes valid)
+	if s3_validate_attributes -eq 0; then
+		execute_s3_sync
+	else
+		log_error "Couldn't execute S3 synchronization due to one or more errors."
+	fi
+
+	s3_remove_config
+}
+
+function s3_handler () {
+	s3_initialize
+}
+
+function s3_set_attributes () {
+	S3_ACCESS_KEY="${S3_ACCESS_KEY:-}"
+	S3_SECRET_KEY="${S3_SECRET_KEY:-}"
+	S3_BUCKET_URI="${S3_BUCKET_URI:-}"
+	S3_BACKUP_DIR=`readlink -f "${S3_BACKUP_DIR:-$DITTO_BACKUPS_DIR}"`
+	S3_CONFIG_FILE=`mktemp`
+	S3_USE_ENCRYPTION="${S3_USE_ENCRYPTION:-false}"
+	S3_USE_COMPRESSION="${S3_USE_COMPRESSION:-false}"
+	S3_MD5_CHECKING="${S3_MD5_CHECKING:-false}"
+	S3_REMOVE_DELETED="${S3_REMOVE_DELETED:-false}"
+	S3_PRESERVE_PERMISSIONS="${S3_PRESERVE_PERMISSIONS:-true}"
+	S3_FOLLOW_SYMLINKS="${S3_FOLLOW_SYMLINKS:-true}"
+	S3_DIRS_RECURSIVE="${S3_DIRS_RECURSIVE:-true}"
+	S3_MAX_CPU="${S3_MAX_CPU:-"75"}"
+	S3CMD="${S3CMD:-`which s3cmd`}"
+	CPULIMIT="${CPULIMIT:-`which cpulimit`}"
+}
+
+function s3_validate_attributes () {
+	if [[ -z $S3_BUCKET_URI ]]; then
+		log_error "S3 bucket URI was not valid. URI cannot be NULL."
+		return 1
+	fi
+
+	if [[ $S3_BACKUP_DIR == $DITTO_BACKUPS_DIR ]]; then
+		log_warning "S3 local backup directory not specified. Using root ditto backups directory instead (${DITTO_BACKUPS_DIR})."
+	fi
+
+	if [[ -z $S3CMD ]]; then
+		log_fatal "Missing dependency - \"s3cmd\". This utility must be installed. Exiting."
+	fi
+
+	if [[ -z $CPULIMIT ]]; then
+		log_fatal "Missing dependency - \"cpulimit\". This utility must be installed. Exiting."
+	fi
+
+	if [[ $S3_MD5_CHECKING == false ]]; then
+		S3CMD_OPTS="${S3CMD_OPTS} --no-check-md5"
+	fi
+
+	if [[ $S3_DIRS_RECURSIVE == true ]]; then
+		S3CMD_OPTS="${S3CMD_OPTS} --recursive"
+	fi
+
+	if [[ $S3_FOLLOW_SYMLINKS == true ]]; then
+		S3CMD_OPTS="${S3CMD_OPTS} --follow-symlinks"
+	fi
+
+	if [[ $S3_REMOVE_DELETED == false ]]; then
+		S3CMD_OPTS="${S3CMD_OPTS} --no-delete-removed"
+	fi
+
+	if [[ $S3_PRESERVE_PERMISSIONS == true ]]; then
+		S3CMD_OPTS="${S3CMD_OPTS} --preserve"
+	fi
+
+	# Custom S3cmd options
+	S3CMD_OPTS="${S3CMD_OPTS} --no-progress -c ${S3_CONFIG_FILE}"
+
+	if [[ $S3_USE_ENCRYPTION == true ]]; then
+		log_debug "S3_USE_ENCRYPTION is currently not implemented."
+	fi
+
+	if [[ $S3_USE_COMPRESSION == true ]]; then
+		log_debug "S3_USE_COMPRESSION is currently not implemented."
+	fi
+}
+
+# Build s3cmd config file
+function s3_build_config () {
+	if [ ! -f $S3_CONFIG_FILE ]; then
+		log_error "Unable to create s3cmd configuration stub (\"${S3_CONFIG_FILE}\")."
+	fi
+
+	echo "access_key = \"${S3_ACCESS_KEY}\"" >> $S3_CONFIG_FILE
+	if [ $? -eq 0 ]; then
+		log_debug "Wrote S3 access key to s3cmd configuration stub."
+		echo "secret_key = \"${S3_SECRET_KEY}\"" >> $S3_CONFIG_FILE
+		if [ $? -eq 0 ]; then
+			log_debug "Wrote S3 secret key to s3cmd configuration stub."
+			return 0
+		else
+			log_error "Failed to write S3 secret key to s3cmd configuration stub."
+			return 1
+		fi
+	else
+		log_error "Failed to write S3 access key to s3cmd configuration stub."
+		return 1
+	fi
+}
+
+function s3_remove_config () {
+	if [ -f $S3_CONFIG_FILE ]; then
+		rm -f $S3_CONFIG_FILE 2>&1 >/dev/null
+		if [ $? -eq 0 ]; then
+			log_debug "Deleted s3cmd configuration stub."
+		else
+			log_debug "Failed to remove s3cmd configuration stub."
+		fi
+	fi
+}
+
+function s3_validate_keys () {
+	# Validate access/secret keys
+	if [[ ! -z $S3_ACCESS_KEY ]]; then
+		if [[ ! -z $S3_SECRET_KEY ]]; then
+			log_debug "S3 access/secret keys were found."
+			return 0
+		else
+			log_error "S3 secret key was not valid. Key cannot be NULL."
+			return 1
+		fi
+	else
+		log_error "S3 access key was not valid. Key cannot be NULL."
+		return 1
+	fi
+}
+
+function export_access_keys () {
+	export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY}" 2>&1 >/dev/null
+	export AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY}" 2>&1 >/dev/null
+	log_debug "S3 access/secret keys have been temporarily exported to the environment."
+}
+
+# Synchronize files with Amazon S3
+function execute_s3_sync () {
+	# Verify keys are set
+	if [[ ! -z $AWS_ACCESS_KEY_ID && ! -z $AWS_SECRET_ACCESS_KEY ]]; then
+		log_info "Starting synchronization of files to S3..."
+
+		# Perform sync to S3
+		$S3CMD $S3CMD_OPTS sync $S3_BACKUP_DIR s3://$S3_BUCKET_URI/ 2>&1 >/dev/null &
+		S3CMD_PID=$!
+
+		# Rate limit s3cmd
+		$CPULIMIT -p $S3CMD_PID -l $S3_MAX_CPU -z &> /dev/null
+
+		wait $S3CMD_PID 2>&1
+		if [ $? -eq 0 ]; then
+			log_info "Successfully synchronized files with S3."
+		else
+			log_error "Failed to synchronize files with S3."
+		fi
+	else
+		log_error "Cannot perform S3 synchronization. S3 access key or secret was NULL."
+	fi
+}

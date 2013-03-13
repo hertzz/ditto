@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#
+
+WHEN="0 21 * * *"
+
+MYSQL_USERNAME=username
+MYSQL_PASSWORD=password
+#MYSQL_DATABASES=all
+#MYSQL_HOSTNAME=localhost
+#MYSQL_GZIP_DATA=false
+#MYSQL_DATED_DUMP=true
+#MYSQL_HOTCOPY=false
