@@ -35,7 +35,7 @@ function initialize_params () {
 	DITTO_PID="$$"
 	EXECUTION_STATES=("OK" "WARNING" "ERROR" "FAILED")
 	LOG_TMP_FILE=`mktemp "/tmp/DITTO-XXXX.log"`
-	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-"itsupport@base2services.com"}
+	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-""}
 	VERBOSE_LOGGING=${VERBOSE_LOGGING:-false}
 	LOG_FILE=${LOG_FILE:-"syslog"}
 	LOGGING_STDOUT=${LOGGING_STDOUT:-false}
@@ -59,6 +59,10 @@ function initialize_run () {
 
 	if ! file_exists? $LOG_TMP_FILE; then
 		log_fatal "Could not create log file stub (${LOG_TMP_FILE})."
+	fi
+
+	if [[ $DITTO_MAIL_RECIPIENTS == "" ]]; then
+    log_warning "No mail recipients specified in global config file. Will not send notification email."
 	fi
 
 	if [[ $LOG_FILE != "syslog" ]]; then
