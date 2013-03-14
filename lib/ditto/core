@@ -267,7 +267,7 @@ function parse_schedules () {
 			fi
 		done
 	else
-		log_error "There are no available schedules."
+		log_info "There are no available schedules."
 	fi
 }
 
