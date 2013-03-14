@@ -162,9 +162,10 @@ function initialize_cron_automation () {
 		cat <<- EOF > "/etc/cron.d/ditto-backup.cron"
     * * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
 		EOF
+		echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
+	else
+		echo "Ditto is already initialized. Skipping initialization..."
 	fi
-
-	echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
 }
 
 function system_cleanup () {
