@@ -36,6 +36,7 @@ function initialize_params () {
 	EXECUTION_STATES=("OK" "WARNING" "ERROR" "FAILED")
 	LOG_TMP_FILE=`mktemp "/tmp/DITTO-XXXX.log"`
 	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-""}
+	EMAIL_RESULTS=${EMAIL_RESULTS:-true}
 	VERBOSE_LOGGING=${VERBOSE_LOGGING:-false}
 	LOG_FILE=${LOG_FILE:-"syslog"}
 	LOGGING_STDOUT=${LOGGING_STDOUT:-false}
@@ -577,5 +578,7 @@ function mail_results () {
 		;;
 	esac
 
-	echo "${MAILBODY}" | mail -a $LOG_TMP_FILE -s "Ditto Backup Notification (${SYSTEM_HOSTNAME})" "${DITTO_MAIL_RECIPIENTS}"
+	if [[ $EMAIL_RESULTS == true ]]; then
+		echo "${MAILBODY}" | mail -a $LOG_TMP_FILE -s "Ditto Backup Notification (${SYSTEM_HOSTNAME})" "${DITTO_MAIL_RECIPIENTS}"
+	fi
 }

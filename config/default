@@ -7,4 +7,3 @@
 #NSCA_CONFIG_FILE=/etc/nagios/send_nsca.cfg
 
 LOG_FILE=/var/log/ditto.log
-#DITTO_MAIL_RECIPIENTS="noreply@myemail.com.au"
