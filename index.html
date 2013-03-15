@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <title>Ditto by tommyjohnson</title>
+  </head>
+
+  <body>
+    <div id="container">
+      <div class="inner">
+
+        <header>
+          <h1>Ditto</h1>
+          <h2>Bash driven backup utility</h2>
+        </header>
+
+        <section id="downloads" class="clearfix">
+          <a href="https://github.com/tommyjohnson/ditto/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
+          <a href="https://github.com/tommyjohnson/ditto/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
+          <a href="https://github.com/tommyjohnson/ditto" id="view-on-github" class="button"><span>View on GitHub</span></a>
+        </section>
+
+        <hr>
+
+        <section id="main_content">
+          <h1>Ditto-Backup</h1>
+
+<p>A simple bash driven MySQL and local file backup system for archiving files to Amazon AWS Simple Storage Service.</p>
+
+<ol>
+<li>Installation</li>
+<li>Configuration</li>
+<li>Troubleshooting</li>
+</ol><h4>1. Installation</h4>
+
+<p>To get started installing Ditto, you can run the following command which will download and install all features:</p>
+
+<pre><code>$ curl https://raw.github.com/tommyjohnson/ditto/master/bin/install-ditto | sh
+</code></pre>
+
+<p>By running the above command, Ditto will automatically install a cronjob in <strong>/etc/cron.d</strong>. The cronjob itself runs as the root user, however you can change this by modifying <strong>/etc/cron.d/ditto-backup.cron</strong>. The cronjob makes Ditto execute every minute continuously which will fire off the boostrap process and procedurally trigger any actions defined in the schedules directory (presuming they are allowed to run at that point in time).</p>
+
+<h4>2. Configuration</h4>
+
+<h5>MySQL backups</h5>
+
+<p>If you need to backup one or more databases, you will need to configure a MySQL schedule for Ditto which will periodically back up your important data. To start, you can either create a new MySQL schedule, or you can edit the existing schedule stub which has been provided for you.</p>
+
+<p>Goto the Ditto schedules directory:</p>
+
+<pre><code>$ cd /opt/ditto/schedules
+</code></pre>
+
+<p>If creating a new MySQL schedule, create a file in the above directory which describes the action in a way you can easily determine what it's doing, prefixed with a 3 digit number and prepended with <strong>".mysql</strong>".</p>
+
+<pre><code>$ touch 003-all-production-databases.mysql
+</code></pre>
+
+<p>If you want to use the existing stub, open the default schedule to edit it:</p>
+
+<pre><code>$ vi 001-all-databases.mysql
+</code></pre>
+
+<p>The number prefix before the action description is used to process schedules in a specific order. Files do not need to have a unique number in their filename.</p>
+
+<p>The <strong>".mysql"</strong> file extension tells Ditto to use the MySQL action handler to deal with the schedule.</p>
+
+<p>To get the blank schedule running, you will need to add the action instructions into the file which you created above:</p>
+
+<pre><code>$ vi /opt/ditto/schedules/003-all-production-databases.mysql
+</code></pre>
+
+<p>Add the following content into the schedule:</p>
+
+<pre><code>#!/usr/bin/env bash
+#
+
+WHEN="0 21 * * *"
+
+MYSQL_USERNAME=username
+MYSQL_PASSWORD=password
+#MYSQL_DATABASES=all
+#MYSQL_HOSTNAME=localhost
+#MYSQL_GZIP_DATA=false
+#MYSQL_DATED_DUMP=true
+#MYSQL_HOTCOPY=false
+</code></pre>
+
+<p>You will need to change the Username and Password properties, however all of the other settings will work as their defaults.</p>
+
+<p>To back up individual databases, change the databases property to a space seperated list of database names in double quotes.</p>
+
+<p>The <strong>WHEN</strong> property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the MySQL schedule to run at 02:25 PM daily, you would specify the following:</p>
+
+<pre><code>WHEN="25 14 * * *"
+</code></pre>
+
+<p>The expressions, however, <strong>do not support advanced operators</strong>. Basically, you can only use single or double digit numbers for all of the values. An asterisk implies that it should always run for that specific field. (See the cron man page for more information about the field orders).</p>
+
+<h5>S3 backups (Simple storage service)</h5>
+
+<p>If you want to backup files to S3, you will need to configure an S3 schedule for Ditto which will periodically push your important data to the cloud. To start, you can either create a new S3 schedule, or you can edit the existing schedule stub which has been provided for you.</p>
+
+<p>Goto the Ditto schedules directory:</p>
+
+<pre><code>$ cd /opt/ditto/schedules
+</code></pre>
+
+<p>If creating a new S3 schedule, create a file in the above directory which describes the action in a way you can easily determine what it's doing, prefixed with a 3 digit number and prepended with <strong>".mysql</strong>".</p>
+
+<pre><code>$ touch 900-backups.s3
+</code></pre>
+
+<p>If you want to use the existing stub, open the default schedule to edit it:</p>
+
+<pre><code>$ vi 999-backup.s3
+</code></pre>
+
+<p>The number prefix before the action description is used to process schedules in a specific order. Files do not need to have a unique number in their filename.</p>
+
+<p>The <strong>".s3"</strong> file extension tells Ditto to use the S3 action handler to deal with the schedule.</p>
+
+<p>To get the blank schedule running, you will need to add the action instructions into the file which you created above:</p>
+
+<pre><code>$ vi /opt/ditto/schedules/900-backups.s3
+</code></pre>
+
+<p>Add the following content into the schedule:</p>
+
+<pre><code>#!/usr/bin/env bash
+#
+
+WHEN="0 23 * * *"
+
+S3_ACCESS_KEY=""
+S3_SECRET_KEY=""
+S3_BUCKET_URI=""
+S3_USE_ENCRYPTION=false
+S3_USE_COMPRESSION=false
+#S3_MD5_CHECKING=true
+#S3_REMOVE_DELETED=false
+#S3_PRESERVE_PERMISSIONS=true
+S3_MAX_CPU=75
+</code></pre>
+
+<p>You will need to set the access key, secret key and bucket URI properties, however all of the other settings will work as their defaults.</p>
+
+<p>When the S3 schedule runs, it will automatically synchronize all files from the Ditto backups directory to the specified Bucket location which by default is <strong>/opt/ditto/backups</strong>.</p>
+
+<p>You can override the path which the schedule is using as the source location by configuring the following property:</p>
+
+<pre><code>S3_BACKUP_DIR=/path/to/my/dir
+</code></pre>
+
+<p>The <strong>WHEN</strong> property is used to tell the schedule when it is allowed to execute. The string specified for WHEN refers to a dumbed down version of a regular cron expression. For example, if you wanted the S3 schedule to run at 04:45 PM daily, you would specify the following:</p>
+
+<pre><code>WHEN="45 16 * * *"
+</code></pre>
+
+<p>The expressions, however, <strong>do not support advanced operators</strong>. Basically, you can only use single or double digit numbers for all of the values. An asterisk implies that it should always run for that specific field. (See the cron man page for more information about the field orders).</p>
+
+<h4>3. Troubleshooting</h4>
+
+<p>All logging information is by default, written to syslog using logger. On RedHat/CentOS systems, you can look at what Ditto is doing using the following command:</p>
+
+<pre><code>$ tail -f /var/log/messages | grep DITTO
+</code></pre>
+
+<p>On Debian based systems such as Ubuntu, you can run the following command:</p>
+
+<pre><code>$ tail -f /var/log/rsyslog | grep DITTO
+</code></pre>
+        </section>
+
+        <footer>
+          Ditto is maintained by <a href="https://github.com/tommyjohnson">tommyjohnson</a><br>
+          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="http://twitter.com/jasonlong">Jason Long</a>.
+        </footer>
+
+        
+      </div>
+    </div>
+  </body>
+</html>
