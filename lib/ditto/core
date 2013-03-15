@@ -93,7 +93,9 @@ function finalize_run () {
 	local REAL_RUN_TIME=
 	
 	if [[ $EXECUTION_STATE == "OK" || $EXECUTION_STATE == "WARNING" ]]; then
-	echo "`date +%s`" > $DITTO_BASE_DIR/.lastSuccessfulRun
+		if [ $SCHEDULES_CAN_EXECUTE -ne 0 ]; then
+			echo "`date +%s`" > $DITTO_BASE_DIR/.lastSuccessfulRun
+		fi
 	fi
 	
 	if [ $DITTO_TOTAL_RUN_TIME -gt 60 ]; then
