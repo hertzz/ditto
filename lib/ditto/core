@@ -62,8 +62,10 @@ function initialize_run () {
 		log_fatal "Could not create log file stub (${LOG_TMP_FILE})."
 	fi
 
-	if [[ $DITTO_MAIL_RECIPIENTS == "" ]]; then
-    log_warning "No mail recipients specified in global config file. Will not send notification email."
+	if [[ $EMAIL_RESULTS == true ]]; then
+		if [[ $DITTO_MAIL_RECIPIENTS == "" ]]; then
+    	log_warning "No mail recipients specified in global config file. Will not send notification email."
+		fi
 	fi
 
 	if [[ $LOG_FILE != "syslog" ]]; then
@@ -161,7 +163,7 @@ function send_passive_notification () {
 function initialize_cron_automation () {
 	if [ ! -f /etc/cron.d/ditto-backup.cron ]; then
 		cat <<- EOF > "/etc/cron.d/ditto-backup.cron"
-    * * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
+		* * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
 		EOF
 		echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
 	else
