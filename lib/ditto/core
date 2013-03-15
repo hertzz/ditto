@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # DITTO
-# Tom Johnson <t.johnson@base2services.com>
+# Tom Johnson <tom@thebitcrusher.net>
 #
 # A bash driven backup utility for scheduled
 # Linux system backups.
@@ -383,7 +383,7 @@ function syntax_usage () {
 	cat <<-ENDMSG
 	
 	DITTO
-	Tom Johnson <t.johnson@base2services.com>
+	Tom Johnson <tom@thebitcrusher.net>
 
 	A bash driven backup utility for scheduled Linux system
 	backups.

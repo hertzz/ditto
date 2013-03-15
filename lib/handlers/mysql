@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Ditto
-# Tom Johnson <t.johnson@base2services.com>
+# Tom Johnson <tom@thebitcrusher.net>
 #
 
 MYSQL_EXCLUDE_DATABASES="information_schema|mysql|performance_schema|test|Database"

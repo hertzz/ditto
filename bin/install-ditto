@@ -1,14 +1,14 @@
 #!/bin/bash
 #
 # Ditto
-# Tom Johnson <t.johnson@base2services.com> 
+# Tom Johnson <tom@thebitcrusher.net> 
 #
 # A bash driven backup utility for scheduled
 # incremental Linux system backups.
 #
 
-DITTO_BASE_DIR=/opt/base2/ditto
-DITTO_GIT_TARBALL="https://github.com/base2Services/ditto/archive/master.tar.gz"
+DITTO_BASE_DIR=/opt/ditto
+DITTO_GIT_TARBALL="https://github.com/tommyjohnson/ditto/archive/master.tar.gz"
 DITTO_TMP_TARBALL=/tmp/ditto-master.tar.gz
 
 function rollback () {
@@ -39,7 +39,7 @@ else
    echo "** Ditto extracted to filesystem."
 
    # Initialize Ditto
-   /opt/base2/ditto/bin/ditto -i
+   /opt/ditto/bin/ditto -i
    if [ $? -eq 0 ]; then
       echo "** Ditto has been installed."
    else

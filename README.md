@@ -8,7 +8,7 @@ A simple bash driven MySQL and local file backup system for archiving files to A
 #### 1. Installation ####
 To get started installing Ditto, you can run the following command which will download and install all features:
 
-	$ curl https://raw.github.com/base2Services/ditto/master/bin/install-ditto | sh
+	$ curl https://raw.github.com/tommyjohnson/ditto/master/bin/install-ditto | sh
 
 By running the above command, Ditto will automatically install a cronjob in **/etc/cron.d**. The cronjob itself runs as the root user, however you can change this by modifying **/etc/cron.d/ditto-backup.cron**. The cronjob makes Ditto execute every minute continuously which will fire off the boostrap process and procedurally trigger any actions defined in the schedules directory (presuming they are allowed to run at that point in time).
 
@@ -20,7 +20,7 @@ If you need to backup one or more databases, you will need to configure a MySQL 
 
 Goto the Ditto schedules directory:
 
-	$ cd /opt/base2/ditto/schedules
+	$ cd /opt/ditto/schedules
 	
 If creating a new MySQL schedule, create a file in the above directory which describes the action in a way you can easily determine what it's doing, prefixed with a 3 digit number and prepended with **".mysql**".
 
@@ -36,7 +36,7 @@ The **".mysql"** file extension tells Ditto to use the MySQL action handler to d
 
 To get the blank schedule running, you will need to add the action instructions into the file which you created above:
 
-	$ vi /opt/base2/ditto/schedules/003-all-production-databases.mysql
+	$ vi /opt/ditto/schedules/003-all-production-databases.mysql
 	
 Add the following content into the schedule:
 
@@ -69,7 +69,7 @@ If you want to backup files to S3, you will need to configure an S3 schedule for
 
 Goto the Ditto schedules directory:
 
-	$ cd /opt/base2/ditto/schedules
+	$ cd /opt/ditto/schedules
 
 If creating a new S3 schedule, create a file in the above directory which describes the action in a way you can easily determine what it's doing, prefixed with a 3 digit number and prepended with **".mysql**".
 	
@@ -85,7 +85,7 @@ The **".s3"** file extension tells Ditto to use the S3 action handler to deal wi
 
 To get the blank schedule running, you will need to add the action instructions into the file which you created above:
 
-	$ vi /opt/base2/ditto/schedules/900-backups.s3
+	$ vi /opt/ditto/schedules/900-backups.s3
 	
 Add the following content into the schedule:
 
@@ -106,7 +106,7 @@ Add the following content into the schedule:
 
 You will need to set the access key, secret key and bucket URI properties, however all of the other settings will work as their defaults.
 
-When the S3 schedule runs, it will automatically synchronize all files from the Ditto backups directory to the specified Bucket location which by default is **/opt/base2/ditto/backups**.
+When the S3 schedule runs, it will automatically synchronize all files from the Ditto backups directory to the specified Bucket location which by default is **/opt/ditto/backups**.
 
 You can override the path which the schedule is using as the source location by configuring the following property:
 
