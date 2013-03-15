@@ -6,15 +6,9 @@ A simple bash driven MySQL and local file backup system for archiving files to A
 3. Troubleshooting
 
 #### 1. Installation ####
-To get started installing Ditto, you will need to clone <http://www.github.com/base2Services/ditto.git>  to the target host.
+To get started installing Ditto, you can run the following command which will download and install all features:
 
-	$ mkdir -p /opt/base2
-	$ cd /opt/base2
-	$ git clone https://www.github.com/base2Services/ditto.git
-
-Next, you need to initialize Ditto so that it will automatically run scheduled actions.
-
-	$ /opt/base2/ditto/bin/ditto -i
+	$ curl https://raw.github.com/base2Services/ditto/master/bin/install-ditto | sh
 
 By running the above command, Ditto will automatically install a cronjob in **/etc/cron.d**. The cronjob itself runs as the root user, however you can change this by modifying **/etc/cron.d/ditto-backup.cron**. The cronjob makes Ditto execute every minute continuously which will fire off the boostrap process and procedurally trigger any actions defined in the schedules directory (presuming they are allowed to run at that point in time).
 
