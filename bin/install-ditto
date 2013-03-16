@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# Ditto
+# Tom Johnson <tom@thebitcrusher.net> 
+#
+# A bash driven backup utility for scheduled
+# incremental Linux system backups.
+#
+
+DITTO_BASE_DIR=/opt/ditto
+DITTO_GIT_TARBALL="https://github.com/tommyjohnson/ditto/archive/master.tar.gz"
+DITTO_TMP_TARBALL=/tmp/ditto-master.tar.gz
+
+function rollback () {
+   echo "** Rolling back installation..."
+   rm -f $DITTO_TMP_TARBALL 2>&1 >/dev/null
+   rm -rf $DITTO_BASE_DIR 2>&1 >/dev/null
+   rm -f /etc/cron.d/ditto-backup.cron 2>&1 >/dev/null
+   rm -f /var/log/ditto.log 2>&1 >/dev/null
+}
+
+if [ ! -d $DITTO_BASE_DIR ]; then
+   echo "** Creating Ditto base directory..."
+   mkdir -p $DITTO_BASE_DIR
+fi
+
+# Download tarball
+echo "** Downloading latest Ditto tarball..."
+wget "${DITTO_GIT_TARBALL}" -O $DITTO_TMP_TARBALL
+
+# Extract to filesystem
+echo "** Extracting Ditto to filesystem..."
+tar xvf $DITTO_TMP_TARBALL -C $DITTO_BASE_DIR --strip=1 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+   echo "** Failed to extract Ditto to filesystem."
+   rollback
+else
+   echo "** Ditto extracted to filesystem."
+
+   # Initialize Ditto
+   /opt/ditto/bin/ditto -i
+   if [ $? -eq 0 ]; then
+      echo "** Ditto has been installed."
+   else
+      echo "** Ditto failed to install correctly."
+      rollback
+   fi
+fi
+
+echo "** Done."
+exit 0

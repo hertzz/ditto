@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Ditto
-# Tom Johnson <t.johnson@base2services.com> 
+# Tom Johnson <tom@thebitcrusher.net> 
 #
 # A bash driven backup utility for scheduled
 # incremental Linux system backups.

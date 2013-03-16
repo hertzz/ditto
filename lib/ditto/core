@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # DITTO
-# Tom Johnson <t.johnson@base2services.com>
+# Tom Johnson <tom@thebitcrusher.net>
 #
 # A bash driven backup utility for scheduled
 # Linux system backups.
@@ -35,7 +35,8 @@ function initialize_params () {
 	DITTO_PID="$$"
 	EXECUTION_STATES=("OK" "WARNING" "ERROR" "FAILED")
 	LOG_TMP_FILE=`mktemp "/tmp/DITTO-XXXX.log"`
-	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-"itsupport@base2services.com"}
+	DITTO_MAIL_RECIPIENTS=${DITTO_MAIL_RECIPIENTS:-""}
+	EMAIL_RESULTS=${EMAIL_RESULTS:-true}
 	VERBOSE_LOGGING=${VERBOSE_LOGGING:-false}
 	LOG_FILE=${LOG_FILE:-"syslog"}
 	LOGGING_STDOUT=${LOGGING_STDOUT:-false}
@@ -59,6 +60,12 @@ function initialize_run () {
 
 	if ! file_exists? $LOG_TMP_FILE; then
 		log_fatal "Could not create log file stub (${LOG_TMP_FILE})."
+	fi
+
+	if [[ $EMAIL_RESULTS == true ]]; then
+		if [[ $DITTO_MAIL_RECIPIENTS == "" ]]; then
+    	log_warning "No mail recipients specified in global config file. Will not send notification email."
+		fi
 	fi
 
 	if [[ $LOG_FILE != "syslog" ]]; then
@@ -86,7 +93,9 @@ function finalize_run () {
 	local REAL_RUN_TIME=
 	
 	if [[ $EXECUTION_STATE == "OK" || $EXECUTION_STATE == "WARNING" ]]; then
-	echo "`date +%s`" > $DITTO_BASE_DIR/.lastSuccessfulRun
+		if [ $SCHEDULES_CAN_EXECUTE -ne 0 ]; then
+			echo "`date +%s`" > $DITTO_BASE_DIR/.lastSuccessfulRun
+		fi
 	fi
 	
 	if [ $DITTO_TOTAL_RUN_TIME -gt 60 ]; then
@@ -156,11 +165,12 @@ function send_passive_notification () {
 function initialize_cron_automation () {
 	if [ ! -f /etc/cron.d/ditto-backup.cron ]; then
 		cat <<- EOF > "/etc/cron.d/ditto-backup.cron"
-    * * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
+		* * * * * root `readlink -f ${DITTO_BASE_DIR}/bin/ditto`
 		EOF
+		echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
+	else
+		echo "Ditto is already initialized. Skipping initialization..."
 	fi
-
-	echo "Ditto cron automation has been configured in /etc/cron.d and will run every minute."
 }
 
 function system_cleanup () {
@@ -263,7 +273,7 @@ function parse_schedules () {
 			fi
 		done
 	else
-		log_error "There are no available schedules."
+		log_info "There are no available schedules."
 	fi
 }
 
@@ -373,7 +383,7 @@ function syntax_usage () {
 	cat <<-ENDMSG
 	
 	DITTO
-	Tom Johnson <t.johnson@base2services.com>
+	Tom Johnson <tom@thebitcrusher.net>
 
 	A bash driven backup utility for scheduled Linux system
 	backups.
@@ -572,5 +582,7 @@ function mail_results () {
 		;;
 	esac
 
-	echo "${MAILBODY}" | mail -a $LOG_TMP_FILE -s "Ditto Backup Notification (${SYSTEM_HOSTNAME})" "${DITTO_MAIL_RECIPIENTS}"
+	if [[ $EMAIL_RESULTS == true ]]; then
+		echo "${MAILBODY}" | mail -a $LOG_TMP_FILE -s "Ditto Backup Notification (${SYSTEM_HOSTNAME})" "${DITTO_MAIL_RECIPIENTS}"
+	fi
 }
