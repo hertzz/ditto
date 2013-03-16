@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#
+# Ditto
+# Tom Johnson <tom@thebitcrusher.net> 
+#
+# A bash driven backup utility for scheduled
+# incremental Linux system backups.
+#
+
+DITTO_BASE_DIR=/opt/base2/ditto
+DITTO_STATE_FILE="${DITTO_BASE_DIR}/.lastSuccessfulRun"
+OS=
+NRPE_PLUGINS_PATH=
+SYSTEM_ARCH="`uname -i`"
+NRPE_LIB_DIR=
+
+# Make sure Ditto base dir exists
+if [ ! -d $DITTO_BASE_DIR ]; then
+   echo "CRITICAL - Cannot locate Ditto base directory (${DITTO_BASE_DIR})."
+   exit 1
+fi
+
+# Get system architecture
+if [[ $SYSTEM_ARCH == "x86_64" ]]; then
+   NRPE_LIB_DIR="lib64"
+elif [[ $SYSTEM_ARCH == "i386" || $NRPE_LIB_NAME == "i686" ]]; then
+   NRPE_LIB_DIR="lib"
+fi
+
+# Set NRPE plugins path
+if [ -f /etc/redhat-release ]; then
+   OS="rpm"
+   NRPE_PLUGINS_PATH="/usr/${NRPE_LIB_DIR}/nagios/plugins"
+elif [ -f /etc/debian_version ]; then
+   OS="deb"
+   NRPE_PLUGINS_PATH="/usr/lib/nagios/plugins"
+ else
+   OS="unknown"
+   NRPE_PLUGINS_PATH=
+fi
+
+. $NRPE_PLUGINS_PATH/utils.sh
+
+if [ ! -f $DITTO_STATE_FILE ]; then
+   echo "CRITICAL - Cannot locate Ditto state file."
+   exit $STATE_CRITICAL
+fi
+
+DITTO_STATE="`cat $DITTO_STATE_FILE`"
+
+case $DITTO_STATE in
+   0)
+      echo "OK - Ditto is working."
+      exit $STATE_OK
+   ;;
+   1)
+      echo "CRITICAL - Ditto is not working correctly."
+   ;;
+   *)
+      echo "UNKNOWN - Ditto has an unexepected problem."
+      exit $STATE_UNKNOWN
+   ;;
+esac
