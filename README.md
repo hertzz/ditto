@@ -120,10 +120,6 @@ The expressions, however, **do not support advanced operators**. Basically, you 
 
 #### 3. Troubleshooting ####
 
-All logging information is by default, written to syslog using logger. On RedHat/CentOS systems, you can look at what Ditto is doing using the following command:
+All logging information is by default, written to /var/log/ditto.log. You can tail the log file to look for any errors being raised about potential problems:
 
-	$ tail -f /var/log/messages | grep DITTO
-	
-On Debian based systems such as Ubuntu, you can run the following command:
-
-	$ tail -f /var/log/rsyslog | grep DITTO
+	$ tail -f /var/log/ditto.log
