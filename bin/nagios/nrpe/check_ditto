@@ -25,18 +25,30 @@ if [[ $SYSTEM_ARCH == "x86_64" ]]; then
    NRPE_LIB_DIR="lib64"
 elif [[ $SYSTEM_ARCH == "i386" || $NRPE_LIB_NAME == "i686" ]]; then
    NRPE_LIB_DIR="lib"
+else
+   NRPE_LIB_DIR=
+fi
+
+if [ -z $NRPE_LIB_DIR ]; then
+   echo "CRITICAL - Cannot determine system architecture directory."
+   exit 1
 fi
 
 # Set NRPE plugins path
 if [ -f /etc/redhat-release ]; then
-   OS="rpm"
+   OS="RedHat"
    NRPE_PLUGINS_PATH="/usr/${NRPE_LIB_DIR}/nagios/plugins"
 elif [ -f /etc/debian_version ]; then
-   OS="deb"
+   OS="Debian"
    NRPE_PLUGINS_PATH="/usr/lib/nagios/plugins"
  else
    OS="unknown"
    NRPE_PLUGINS_PATH=
+fi
+
+if [ -z $NRPE_PLUGINS_PATH ]; then
+   echo "CRITICAL - Cannot determine NRPE plugins path."
+   exit 1
 fi
 
 . $NRPE_PLUGINS_PATH/utils.sh
@@ -50,14 +62,14 @@ DITTO_STATE="`cat $DITTO_STATE_FILE`"
 
 case $DITTO_STATE in
    0)
-      echo "OK - Ditto is working."
+      echo "OK - Ditto is working (${OS})."
       exit $STATE_OK
    ;;
    1)
-      echo "CRITICAL - Ditto is not working correctly."
+      echo "CRITICAL - Ditto is not working correctly (${OS})."
    ;;
    *)
-      echo "UNKNOWN - Ditto has an unexepected problem."
+      echo "UNKNOWN - Ditto has an unexepected problem (${OS})."
       exit $STATE_UNKNOWN
    ;;
 esac
