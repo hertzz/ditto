@@ -26,7 +26,13 @@ fi
 
 # Download tarball
 echo "** Downloading latest Ditto tarball..."
-wget "${DITTO_GIT_TARBALL}" -O $DITTO_TMP_TARBALL
+wget "${DITTO_GIT_TARBALL}" -O $DITTO_TMP_TARBALL 2>&1 >/dev/null
+
+if [ $? -ne 0 ]; then
+   echo "** Failed to download latest Ditto tarball."
+   rollback
+   exit 1
+fi
 
 # Extract to filesystem
 echo "** Extracting Ditto to filesystem..."
