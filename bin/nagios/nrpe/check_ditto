@@ -67,6 +67,7 @@ case $DITTO_STATE in
    ;;
    1)
       echo "CRITICAL - Ditto is not working correctly (${OS})."
+      exit $STATE_CRITICAL
    ;;
    *)
       echo "UNKNOWN - Ditto has an unexepected problem (${OS})."
