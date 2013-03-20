@@ -160,6 +160,9 @@ function execute_s3_sync () {
 	if [[ ! -z $AWS_ACCESS_KEY_ID && ! -z $AWS_SECRET_ACCESS_KEY ]]; then
 		log_info "Starting synchronization of files to S3..."
 
+		# Fix up invalid non-UTF8 filenames in bucket
+		$S3CMD fixbucket s3://$S3_BUCKET_URI/
+
 		# Perform sync to S3
 		$S3CMD $S3CMD_OPTS sync $S3_BACKUP_DIR s3://$S3_BUCKET_URI/ 2>&1 >/dev/null &
 		S3CMD_PID=$!
