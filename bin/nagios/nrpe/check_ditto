@@ -7,7 +7,7 @@
 # incremental Linux system backups.
 #
 
-DITTO_BASE_DIR=/opt/base2/ditto
+DITTO_BASE_DIR=/opt/ditto
 DITTO_STATE_FILE="${DITTO_BASE_DIR}/.lastSuccessfulRun"
 OS=
 NRPE_PLUGINS_PATH=
