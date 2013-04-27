@@ -241,32 +241,38 @@ function parse_schedules () {
 					log_fatal "Could not determine schedule type for \"${SCHEDULE_BASE_NAME}\"."
 				fi
 
-				# Call appropriate schedule function (and check if it exists lulz)
-				declare -f ${SCHEDULE_TYPE}_handler 2>&1
-				if [ $? -ne 0 ]; then
-					# Check if handler maybe hasn't been loaded
-					if file_exists? $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE; then
-						source $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE 2>&1
-						if [ $? -eq 0 ]; then
-							log_debug "Loaded \"${SCHEDULE_TYPE}\" schedule handler."
+				# If schedule isnt marked as disabled, run handler
+				if [[ $SCHEDULE_TYPE != "disabled" ]]; then
+					# Call appropriate schedule function (and check if it exists)
+					declare -f ${SCHEDULE_TYPE}_handler 2>&1
+					if [ $? -ne 0 ]; then
+						# Check if handler maybe hasn't been loaded
+						if file_exists? $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE; then
+							source $DITTO_HANDLERS_DIR/$SCHEDULE_TYPE 2>&1
+							if [ $? -eq 0 ]; then
+								log_debug "Loaded \"${SCHEDULE_TYPE}\" schedule handler."
+							else
+								log_fatal "Could not load \"${SCHEDULE_TYPE}\" schedule handler."
+							fi
 						else
-							log_fatal "Could not load \"${SCHEDULE_TYPE}\" schedule handler."
+							log_fatal "Could not find appropriate schedule handler for \"${SCHEDULE_TYPE}\" schedule type."
 						fi
-					else
-						log_fatal "Could not find appropriate schedule handler for \"${SCHEDULE_TYPE}\" schedule type."
 					fi
-				fi
 
-				# Ensure backup store location exists for handler
-				validate_handler_backup_dir $SCHEDULE_TYPE
+					# Ensure backup store location exists for handler
+					validate_handler_backup_dir $SCHEDULE_TYPE
 
-				# Run handler if time machines crontab entry in schedule
-				if execution_time_suitable -eq 0; then
-					# Call schedule handler
-					${SCHEDULE_TYPE}_handler
+					# Run handler if time machines crontab entry in schedule
+					if execution_time_suitable -eq 0; then
+						# Call schedule handler
+						${SCHEDULE_TYPE}_handler
+					else
+						log_debug "Skipping execution of \"${SCHEDULE_TYPE}\", it is not time."
+					fi
 				else
-					log_debug "Skipping execution of \"${SCHEDULE_TYPE}\", it is not time."
+					log_info "Skipping execution of disabled schedule \"${SCHEDULE_BASE_NAME}\"."
 				fi
+
 
 			else
 				log_warning "Skipping load of \"${SCHEDULE_BASE_NAME}\" schedule. No configuration options found in file!"
