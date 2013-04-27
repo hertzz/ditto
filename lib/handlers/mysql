@@ -102,7 +102,7 @@ function mysql_execute_backup () {
 						if [[ (( $? -eq 0 )) && (( `gzip -t $MYSQL_OUTPUT_LOCATION/$DATABASE.$MYSQL_FILE_SUFFIX` -eq 0 ))  ]]; then
 						log_info "Completed dump of MySQL database \"${DATABASE}\" with gzip compression (gzip test OK)."
 					else
-						log_warning "Completed dump of MySQL database \"${DATABASE}\" with gzip compression (gzip test FAILED)"
+						log_error "Completed dump of MySQL database \"${DATABASE}\" with gzip compression (gzip test FAILED)"
 					fi
 				else
 					log_error "Failed to dump MySQL database \"${DATABASE}\"."
