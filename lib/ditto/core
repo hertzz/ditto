@@ -242,7 +242,9 @@ function parse_schedules () {
 				fi
 
 				# If schedule isnt marked as disabled, run handler
-				if [[ $SCHEDULE_TYPE ~= "disabled" ]]; then
+				if [[ $SCHEDULE_TYPE =~ "disabled" ]]; then
+					log_info "Skipping execution of disabled schedule \"${SCHEDULE_BASE_NAME}\"."
+				else
 					# Call appropriate schedule function (and check if it exists)
 					declare -f ${SCHEDULE_TYPE}_handler 2>&1
 					if [ $? -ne 0 ]; then
@@ -269,8 +271,6 @@ function parse_schedules () {
 					else
 						log_debug "Skipping execution of \"${SCHEDULE_TYPE}\", it is not time."
 					fi
-				else
-					log_info "Skipping execution of disabled schedule \"${SCHEDULE_BASE_NAME}\"."
 				fi
 
 
