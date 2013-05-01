@@ -242,7 +242,7 @@ function parse_schedules () {
 				fi
 
 				# If schedule isnt marked as disabled, run handler
-				if [[ $SCHEDULE_TYPE != "disabled" ]]; then
+				if [[ $SCHEDULE_TYPE ~= "disabled" ]]; then
 					# Call appropriate schedule function (and check if it exists)
 					declare -f ${SCHEDULE_TYPE}_handler 2>&1
 					if [ $? -ne 0 ]; then
