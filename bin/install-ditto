@@ -45,7 +45,7 @@ else
    echo "** Ditto extracted to filesystem."
 
    # Initialize Ditto
-   /opt/ditto/bin/ditto -i
+   $DITTO_BASE_DIR/bin/ditto -i
    if [ $? -eq 0 ]; then
       echo "** Ditto has been installed."
    else
