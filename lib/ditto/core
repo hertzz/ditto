@@ -361,7 +361,7 @@ function parse_params() {
 	while getopts ":Vvhc:Fdsi" OPTIONS; do
 		case $OPTIONS in
 			V)
-				echo "1.0"
+        echo `cat $DITTO_BASE_DIR/VERSION`
 			;;
 			v)
 				# Toggle
@@ -395,7 +395,7 @@ function syntax_usage () {
 	backups.
 
 	-i, --initialize	Initialize cron automation scripts
-	-V, --version		Display version info.ation
+	-V, --version		Display version information
 	-v, --verbose		Run DITTO with a high verbosity level
 	-h, --help		Show this help menu
 	-s, --stdout		Print logging info.ation to standard out
